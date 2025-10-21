@@ -1,5 +1,5 @@
 import express from 'express';
-import { discordLogger } from './utils/logger';
+import { logger } from './utils/logger';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,7 +17,7 @@ app.get('/health', (req, res) => {
 // Start health check server (only for deployment monitoring)
 if (process.env.NODE_ENV === 'production') {
   app.listen(port, () => {
-    discordLogger.info(`Health check server running on port ${port}`);
+    logger.info(`Health check server running on port ${port}`, { service: 'hpz-crew-bot' });
   });
 }
 
