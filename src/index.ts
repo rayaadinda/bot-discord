@@ -3,6 +3,9 @@ import { config, validateConfig } from './config';
 import { logger, discordLogger } from './utils/logger';
 import { integrationService } from './services/integrationService';
 
+// Import health check for deployment monitoring
+import './health';
+
 // Import command handlers
 import { registerCommands } from './handlers/commandHandler';
 import { loadEvents } from './handlers/eventHandler';
