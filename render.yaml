@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: hpz-crew-discord-bot
+    runtime: node
+    buildCommand: npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: WELCOME_CHANNEL_ID
+        sync: false
+      - key: LEADERBOARD_CHANNEL_ID
+        sync: false
+      - key: LOG_CHANNEL_ID
+        sync: false
