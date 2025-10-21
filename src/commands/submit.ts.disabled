@@ -1,0 +1,215 @@
+import { SlashCommandBuilder, CommandInteraction, ChatInputCommandInteraction, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Command } from '../types/discord';
+import { integrationService } from '../services/integrationService';
+import { createSuccessEmbed, createErrorEmbed, createWarningEmbed } from '../utils/embeds';
+import { config } from '../config';
+import { discordLogger } from '../utils/logger';
+
+const submitCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('submit')
+    .setDescription('Submit content for missions through Discord')
+    .addStringOption(option =>
+      option
+        .setName('title')
+        .setDescription('Content title or description')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName('platform')
+        .setDescription('Platform where content was posted')
+        .addChoices(
+          { name: 'Instagram', value: 'instagram' },
+          { name: 'TikTok', value: 'tiktok' }
+        )
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName('media_url')
+        .setDescription('URL to your content (image or video)')
+        .setRequired(false)
+    )
+    .addStringOption(option =>
+      option
+        .setName('hashtags')
+        .setDescription('Hashtags used (comma separated)')
+        .setRequired(false)
+    ) as SlashCommandBuilder,
+
+  async execute(interaction: ChatInputCommandInteraction) {
+    try {
+      await interaction.deferReply({ ephemeral: true });
+
+      const discordUser = interaction.user;
+      const discordId = discordUser.id;
+
+      // Check if user is linked
+      const isLinked = await integrationService.isDiscordUserLinked(discordId);
+
+      if (!isLinked) {
+        const embed = createWarningEmbed(
+          '🔓 Account Not Linked',
+          `Your Discord account must be linked to submit content.\n\n` +
+          `**Benefits of linking:**\n` +
+          `✅ Submit content and earn points\n` +
+          `✅ Track your submission status\n` +
+          `✅ Get featured in leaderboards\n` +
+          `✅ Access exclusive missions\n\n` +
+          `Use \`/link\` to connect your account and start submitting!`
+        );
+
+        const actionRow = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setLabel('🔗 Link Account Now')
+              .setStyle(ButtonStyle.Primary)
+              .setCustomId('quick_link_for_submit')
+          );
+
+        await interaction.editReply({
+          embeds: [embed],
+          components: [actionRow],
+        });
+
+        return;
+      }
+
+      // Get user info
+      const { data: userStats } = await integrationService.getUserByDiscord(discordId);
+
+      if (!userStats) {
+        await interaction.editReply({
+          embeds: [createErrorEmbed('Error', 'Unable to retrieve your account information. Please try again.')],
+        });
+        return;
+      }
+
+      // Get command options
+      const title = interaction.options.getString('title', true);
+      const platform = interaction.options.getString('platform', true) as 'instagram' | 'tiktok';
+      const mediaUrl = interaction.options.getString('media_url');
+      const hashtagsString = interaction.options.getString('hashtags');
+
+      // Validate submission
+      if (!mediaUrl) {
+        const embed = createWarningEmbed(
+          '⚠️ Media URL Required',
+          'Please provide a media URL for your content submission.\n\n' +
+          'This helps us verify your content and award points accordingly.\n\n' +
+          'Try again with the media URL included!'
+        );
+
+        await interaction.editReply({ embeds: [embed] });
+        return;
+      }
+
+      // Parse hashtags
+      const hashtags = hashtagsString
+        ? hashtagsString.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.startsWith('#'))
+        : [];
+
+      // Prepare submission data
+      const submission = {
+        discordId,
+        missionType: 'content_submission',
+        submissionData: {
+          title,
+          description: title,
+          platform,
+          mediaUrl,
+          hashtags,
+          submittedVia: 'discord_bot',
+        },
+      };
+
+      // Submit content
+      const success = await integrationService.submitContent(userStats.email, discordId, submission);
+
+      if (!success) {
+        await interaction.editReply({
+          embeds: [createErrorEmbed('Submission Failed', 'Failed to submit your content. Please try again later.')],
+        });
+        return;
+      }
+
+      // Create success embed
+      const embed = createSuccessEmbed(
+        '✅ Content Submitted Successfully!',
+        `**Submission Details:**\n\n` +
+        `📝 **Title:** ${title}\n` +
+        `📱 **Platform:** ${platform}\n` +
+        `🔗 **Media URL:** ${mediaUrl}\n` +
+        `🏷️ **Hashtags:** ${hashtags.length > 0 ? hashtags.join(', ') : 'None'}\n\n` +
+        `**What happens next?**\n` +
+        `• Your submission is now under review\n` +
+        `• You'll earn ${config.discordPoints.contentSubmission} points upon approval\n` +
+        `• Check your status in the dashboard\n` +
+        `• Approved content may be featured! 🎉\n\n` +
+        `**Points earned:** +${config.discordPoints.contentSubmission} 🏆`
+      );
+
+      // Add action buttons
+      const actionRow = new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
+          new ButtonBuilder()
+            .setLabel('📊 View Dashboard')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`${config.dashboard.baseUrl}${config.dashboard.profileUrl}`),
+          new ButtonBuilder()
+            .setLabel('📈 Check Points')
+            .setStyle(ButtonStyle.Secondary)
+            .setCustomId('check_points_after_submit'),
+          new ButtonBuilder()
+            .setLabel('📝 Submit Another')
+            .setStyle(ButtonStyle.Secondary)
+            .setCustomId('submit_another_content')
+        );
+
+      embed.addFields({
+        name: '📈 Submission Tips',
+        value: `• Use hashtags: #RideWithPride #HPZCrew\n` +
+               `• Include your Instagram/TikTok handle\n` +
+               `• High-quality content gets approved faster\n` +
+               `• Be creative and authentic!`,
+        inline: false,
+      });
+
+      embed.setFooter({ text: `Submitted by ${userStats.full_name || discordUser.username} • HPZ Crew Community` });
+      embed.setThumbnail(discordUser.displayAvatarURL());
+
+      await interaction.editReply({
+        embeds: [embed],
+        components: [actionRow],
+      });
+
+      // Log the submission
+      await integrationService.logDiscordActivity(
+        userStats.email,
+        discordId,
+        'content_submitted',
+        {
+          title,
+          platform,
+          mediaUrl,
+          hashtags,
+          submittedAt: new Date().toISOString(),
+        },
+        config.discordPoints.contentSubmission
+      );
+
+      discordLogger.command('submit', discordUser.tag, interaction.guild?.name || 'Unknown Guild');
+
+    } catch (error) {
+      discordLogger.error(error as Error, 'Submit Command');
+      if (!interaction.replied) {
+        await interaction.editReply({
+          embeds: [createErrorEmbed('Error', 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi nanti.')],
+        });
+      }
+    }
+  },
+};
+
+export default submitCommand;
