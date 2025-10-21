@@ -171,6 +171,37 @@ Log files tersimpan di folder `logs/`.
 
 ## 🚀 Deployment
 
+### Railway Deployment (Recommended)
+
+1. **Push to GitHub:**
+   ```bash
+   git push origin main
+   ```
+
+2. **Deploy on Railway:**
+   - Go to [Railway Dashboard](https://railway.app/new)
+   - Connect your GitHub repository
+   - Railway will auto-detect Node.js project and use `railway.toml` configuration
+   - Deploy automatically starts
+
+3. **Environment Variables:**
+   Set these in Railway project settings:
+   ```
+   DISCORD_BOT_TOKEN=your_discord_bot_token
+   CLIENT_ID=your_discord_application_id
+   GUILD_ID=your_discord_server_id
+   SUPABASE_URL=your_supabase_project_url
+   SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+   WELCOME_CHANNEL_ID=your_welcome_channel_id
+   LEADERBOARD_CHANNEL_ID=your_leaderboard_channel_id
+   LOG_CHANNEL_ID=your_log_channel_id
+   NODE_ENV=production
+   ```
+
+4. **Health Check:**
+   Railway will monitor `/health` endpoint automatically
+
 ### Docker Deployment
 
 1. Build Docker image:
